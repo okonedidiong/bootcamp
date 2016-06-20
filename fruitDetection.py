@@ -21,8 +21,6 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.externals import joblib
 import pickle
 
-#Testing repository push
-
 class countFruit:
     fruitCount = 0 #currently unused
     images = [] #all images ot train classifer
@@ -30,24 +28,18 @@ class countFruit:
     all_blobs = [] #blob_doh for every image
 
     def __init__(self, files = None):
+        #print(cv2.imread("frame0001.jpeg"))
         if files == None:
             self.filenames = []
         else:
             self.filenames = files
-            print("something!")
             i = 0
             for f in self.filenames:
                 self.images.append(cv2.imread(self.filenames[i], 0))
                 image_gray = rgb2gray(self.images[i])
-                blobs = blob_doh(image_gray,
-                                 min_sigma=.75,
-                                 max_sigma=20,
-                                 num_sigma=25,
-                                 threshold=0.25,
-                                 overlap=0.5,
-                                 log_scale=False)
+                blobs = blob_doh(image_gray, max_sigma=39, threshold=.01)
 
-                print("blobs_size: ", len(blobs))
+                #print("blobs_size: ", len(blobs))
                 # Compute radii in the 3rd column.
                 #blobs[:, 2] = blobs[:, 2] * sqrt(2)
                 self.all_blobs.append(blobs)
@@ -89,9 +81,7 @@ class countFruit:
 
         blobs_list = [blobs_log, blobs_doh]
         colors = ['yellow', 'red']
-        titles = ['Laplacian of Gaussian',
-                 'Determinant of Hessian']
-
+        titles = ['Laplacian of Gaussian', 'Determinant of Hessian']
         sequence = zip(blobs_list, colors, titles)
 
         fig, axes = plt.subplots(1, 2, sharex=True, sharey=True, subplot_kw={'adjustable': 'box-forced'})
@@ -135,7 +125,7 @@ class countFruit:
             #currentAxis.add_patch(Rectangle((x - r, y - r), 2*r, 2*r, fill=None, alpha=1))
 
             scan_init = image_gray[y,x]
-            plt.imshow(image_gray)
+            #plt.imshow(image_gray)
             curr_radius = 1
             x_init1 = x
             x_init2 = x
@@ -277,12 +267,17 @@ class countFruit:
     '''
     ###INCOMPLETE
     '''
-    def RadHOG(self, filename):
+    def testHOG(self, filename):
         image = cv2.imread(filename)
         image = rgb2gray(image)
 
         fd, hog_image = hog(image, orientations=8, pixels_per_cell=(16, 16),
                             cells_per_block=(1, 1), visualise=True)
+        for i in hog_image:
+            for j in i:
+                if j != 0:
+                    print("j: ", j)
+                    print("YAY!")
 
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(8, 4), sharex=True, sharey=True)
 
@@ -329,7 +324,7 @@ class countFruit:
                     x_end = x + (r * math.cos(math.radians(circum)))
                     y_end = y + (r * math.sin(math.radians(circum)))
                     if x_end > 0 and x_end < width and y_end > 0 and y_end < height:
-                        sum = sum + (int(image_gray[y,x]) - int(image_gray[y_end, x_end]))
+                        sum = sum + (image_gray[y,x] - image_gray[y_end, x_end])
                 sum_diff.append(sum)
             arr.append(sum_diff)
         return arr
@@ -351,22 +346,47 @@ class countFruit:
         image_gray = rgb2gray(image)
         arr = []
 
-        #hog = cv2.HOGDescriptor()
+        #currentAxis = plt.gca()
 
         for blob in blobs:
             y, x, r = blob
 
+            tempImage = image_gray
+            degree = math.atan2(y,x)
+
             y1 = y - r*math.sin(math.radians(135))
-            y2 = y + r*math.sin(math.radians(315))
+            y2 = y + r*math.sin(math.radians(135))
             x1 = x + r*math.cos(math.radians(135))
-            x2 = x + r*math.cos(math.radians(315))
-            subImage = image[y1:(y1+2*r), x1:(x1+2*r)]
+            x2 = x - r*math.cos(math.radians(135))
+
+            subImage = image_gray[y1:(y1+2*r), x1:(x1+2*r)]
+            #height, width = subImage.shape[:2]
             #h = hog.compute(image)
             #arr.append(h)
 
-            blob_hog = hog(image_gray, orientations=8, pixels_per_cell=(16, 16),
-                   cells_per_block=(1, 1), visualise=True)
-            arr.append(blob_hog)
+            linArr = hog(subImage, orientations=8, pixels_per_cell=(16, 16),
+                   cells_per_block=(1, 1), visualise=False)
+
+            #print("linArr: ", linArr)
+
+            temp = []
+            #for i in blob_hog:
+            #    for j in i:
+            #        #print("len(j):", len(j))
+            #        print("j:", j)
+            #        print("_______________________________")
+                    #print("j: " j)
+                    #temp.append(j)
+
+            #print(blob_hog)
+            #print("------------------------")
+
+            #currentAxis.add_patch(Rectangle((x1, y1), 2*r, 2*r, color='red', fill=False))
+            arr.append(linArr)
+
+        #plt.imshow(image)
+        #plt.show()
+
         return arr
 
     def trainClassifier(self):
@@ -374,56 +394,82 @@ class countFruit:
         for blobs in self.all_blobs:
             cols = cols + len(blobs)
         X = []
-        Y = []
-
+        X_final = []
+        Y_final = []
+        lenRadPicX = 0
+        maxHogSize = 0
         imagesSize = len(self.images)
 
         for i in range(0, imagesSize):
-            AIM = self.AIM(self.all_blobs[i], rgb2gray(self.images[i]))
-            RadPic = self.RadPIC(5, self.all_blobs[i], rgb2gray(self.images[i]))
-            hog = self.HOG(self.all_blobs[i], rgb2gray(self.images[i]))
-            littleX = []
+            #AIM = self.AIM(self.all_blobs[i], rgb2gray(self.images[i]))
+            #print("AIM: ", AIM)
+            RadPic = self.RadPIC(6, self.all_blobs[i], rgb2gray(self.images[i]))
+            inputHOG = self.HOG(self.all_blobs[i], rgb2gray(self.images[i]))
 
-            print(RadPic)
+
+            if len(inputHOG) > maxHogSize:
+                maxHogSize = len(inputHOG)
 
             for j in range(0, len(RadPic)):
-                X.append(RadPic[j])
-                print("RadPic[i]: ", RadPic[j])
-            for k in AIM:
-                #print("k_size: ", len(k))
-                #print(k)
-                #print("----------")
+                #print("RadPic: ", RadPic[j])
+                #print("inputHOG: ", inputHOG[j])
+                #print("--------")
+                lenRadPicX = len(RadPic[j])
+                X.append(np.append(RadPic[j], inputHOG[j]))
+                #X.append(RadPic[j])
+
+            for k in range(0, len(RadPic)):
                 count = 0
-                for z in range(0, (len(k)-1)):
-                    if k[z] < k[z+1]:
+                for z in range(0, (len(RadPic[k])-1)):
+                    if RadPic[k][z] < RadPic[k][z+1]:
                         count = count + 1
                 if count > 2:
-                    Y.append(1)
+                    Y_final.append(1)
                 else:
-                    Y.append(0)
-            print(Y)
-            #for m in range(i, len(littleX)):
-            #    np.concatenate((X, littleX[m]), 0)
-            #    np.concatenate((Y, littleX[m]), 0)
+                    Y_final.append(0)
 
-            print(X)
-            print(Y)
-            print("Image processed")
-            print("---------------")
+        # Make the RadPIC part of X contain the percent change
+        # between different RadPIC sums
+        for i in range(0, len(X)):
+            temp1 = []
+            X_final.append(temp1)
+            for j in range(0, lenRadPicX-1):
+                if (X[i][j] == 0):
+                    temp1.append(0)
+                else:
+                    temp1.append((X[i][j+1] - X[i][j]) / X[i][j])
+            X[i][lenRadPicX-1] = 0
 
-        # Create the random forest object which will include all the parameters
-        # for the fit
+        xLen = lenRadPicX + maxHogSize
+
+        # Make length of all X's the same
+        for i in range(0, len(X_final)):
+            while len(X_final[i]) < xLen:
+                X_final[i].append(0)
+
+        #Append RadHOG to X_final
+        for i in range(0, len(X)):
+            for j in range(lenRadPicX, X[i]):
+                X_final[i][j] = X[i][j]
+
+
+
+        #print("X_final length: ", len(X_final))
+        #print("Y_final length: ", len(Y_final))
+
         forest = RandomForestClassifier(n_estimators=100)
 
         # Fit the training data to the Survived labels and create the decision trees
-        forest = forest.fit(X, Y)
-        with open('forest2.pkl', 'wb') as f:
+        forest = forest.fit(X_final, Y_final)
+        with open('forest3.pkl', 'wb') as f:
             pickle.dump(forest, f)
+
 
 
     '''
     Uses the classifer trained in
     fruitDetection.trainClassifier in order to predict Y
+
 
     Parameters:
         -an image
@@ -431,38 +477,72 @@ class countFruit:
     def useClassifier(self, filename):
         image = cv2.imread(filename)
         image_gray = rgb2gray(image)
+        lenRadPicX = 0
+        maxHogSize = 0
 
         #blobs = blob_doh(image_gray, max_sigma=30, threshold=.01)
         blobs = blob_doh(image_gray,
-                 min_sigma=.75,
-                 max_sigma=20,
-                 num_sigma=25,
-                 threshold=0.25,
-                 overlap=0.5,
-                 log_scale=False)
+                         min_sigma=.5,
+                         max_sigma=30,
+                         num_sigma=15,
+                         threshold=.005,
+                         overlap=0.5)
 
-        #blobs = blob_dog(image_gray,
-        #                 min_sigma=.5,
-        #                 max_sigma=20,
-        #                 sigma_ratio=1.6,
-        #                 threshold=.5,
-        #                 overlap=0.5)
 
-        # Compute radii in the 3rd column.
-        #blobs[:, 2] = blobs[:, 2] * sqrt(2)
+        RadPic = self.RadPIC(6, blobs, image_gray)
+        inputHOG = self.HOG(blobs, image_gray)
 
-        X = self.RadPIC(5, blobs, image_gray)
+        X = []
+        X_final = []
+
+
+        if len(inputHOG) > maxHogSize:
+            maxHogSize = len(inputHOG)
+
+        for j in range(0, len(RadPic)):
+            lenRadPicX = len(RadPic[j])
+            X.append(np.append(RadPic[j], inputHOG[j]))
+
+        # Make the RadPIC part of X contain the percent change
+        # between different RadPIC sums
+        for i in range(0, len(X)):
+            temp1 = []
+            X_final.append(temp1)
+            for j in range(0, lenRadPicX - 1):
+                if (X[i][j] == 0):
+                    temp1.append(0)
+                else:
+                    temp1.append((X[i][j + 1] - X[i][j]) / X[i][j])
+            X[i][lenRadPicX - 1] = 0
+
+        xLen = lenRadPicX + maxHogSize
+
+        # Make length of all X's the same
+        for i in range(0, len(X_final)):
+            while len(X_final[i]) < xLen:
+                X_final[i].append(0)
+
+        # Append RadHOG to X_final
+        for i in range(0, len(X)):
+            for j in range(lenRadPicX, X[i]):
+                X_final[i][j] = X[i][j]
 
         # Take the same decision trees and run it on the test data
-        with open('forest.pkl', 'rb') as f:
+        with open('forest3.pkl', 'rb') as f:
             forest = pickle.load(f)
 
-        print("X: ", X)
-        prediction = forest.predict(X)
+        print("X_final: ", X_final)
+
+
+        prediction = forest.predict(X_final)
+
+        #print("X_final: ", X_final)
+
+
         print(prediction)
         blobs_list = [[],blobs, []]
 
-        titles = ['Oringinal Image','Blob Detection', 'Random Forest Classifier']
+        titles = ['Original Image','Blob Detection', 'Random Forest Classifier']
 
         colors = ['black', 'orange', 'red' ]
 
@@ -480,14 +560,14 @@ class countFruit:
             ax.imshow(image, interpolation='nearest')
             for blob in blobs:
                 y, x, r = blob
-                c = plt.Circle((x, y), r, color=color, linewidth=1, fill=False)
+                c = plt.Circle((x, y), r, color=color, linewidth=.5, fill=False)
                 ax.add_patch(c)
             if title == 'Random Forest Classifier':
                 for i in range(1, len(blobs2)):
                     blob = blobs2[i]
                     y, x, r = blob
                     if prediction[i] == 1:
-                        c = plt.Circle((x, y), r, color='red', linewidth=1, fill=False)
+                        c = plt.Circle((x, y), r, color='red', linewidth=.5, fill=False)
                         ax.add_patch(c)
 
         plt.show()
@@ -499,10 +579,23 @@ class countFruit:
 '''
 
 
+
 arr = ['frame0000.jpeg', 'frame0001.jpeg', 'frame0002.jpeg', 'frame0003.jpeg', 'frame0004.jpeg']
 apples = countFruit(arr)
 apples.trainClassifier()
-apples.useClassifier('frame0001.jpeg')
 
+'''
+image = cv2.imread("frame0001.jpeg")
+
+image_gray= rgb2gray(image)
+
+blobs = blob_doh(image_gray,
+                 min_sigma=.5,
+                 max_sigma=30,
+                 num_sigma=15,
+                 threshold=.005,
+                 overlap=0.5)
+'''
 #applesTest = countFruit()
-#applesTest.useClassifier("frame0010.jpeg")
+#applesTest.HOG(blobs, image)
+#applesTest.useClassifier("frame0009.jpeg")
