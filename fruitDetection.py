@@ -9,6 +9,12 @@ import scipy.misc
 import numpy as np
 from itertools import cycle
 from PIL import Image, ImageDraw
+# -------------------------------------------------------------------------------------------------
+# Comment out the following 2 lines before compiling. I'm using a virtual environment to run OpenCV
+# and Matplotlib doesn't behave very well with it
+import matplotlib
+matplotlib.use('TkAgg')
+# -------------------------------------------------------------------------------------------------
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 import matplotlib.cm as cm
@@ -581,6 +587,7 @@ class countFruit:
 
 
 arr = ['frame0000.jpeg', 'frame0001.jpeg', 'frame0002.jpeg', 'frame0003.jpeg', 'frame0004.jpeg']
+#arr = ['frame0001.jpeg']
 apples = countFruit(arr)
 apples.trainClassifier()
 
