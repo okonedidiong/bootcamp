@@ -476,7 +476,7 @@ class countFruit:
         X_final = self.makeX(RadPic, inputHOG)
 
         # Take the same decision trees and run it on the test data
-        with open('forest3.pkl', 'rb') as f:
+        with open('26may2016.pkl', 'rb') as f:
             forest = pickle.load(f)
 
         prediction = forest.predict(X_final)
