@@ -9,11 +9,13 @@ from scipy import ndimage
 import scipy.misc
 import numpy as np
 from itertools import cycle
+import PIL
 from PIL import Image, ImageDraw
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 import matplotlib.cm as cm
 from matplotlib.patches import Rectangle
+from scipy.misc import imresize
 from skimage import data
 from skimage.feature import blob_dog, blob_log, blob_doh, hog
 from skimage.color import rgb2gray
@@ -21,6 +23,7 @@ from skimage import data, color, exposure
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.externals import joblib
 import pickle
+import glob
 # -------------------------------------------------------------------------------------------------
 # Comment out the following 2 lines before compiling. I'm using a virtual environment to run OpenCV
 # and Matplotlib doesn't behave very well with it
@@ -29,29 +32,55 @@ import pickle
 # -------------------------------------------------------------------------------------------------
 
 class countFruit:
+
     fruitCount = 0 #currently unused
     images = [] #all images ot train classifer
     filenames = [] #filenames containing all images
     all_blobs = [] #blob_doh for every image
+    croppedImages = []
+    labels = []
+
 
     def __init__(self, files = None):
+        self.croppedImages = croppedImages = glob.glob("cropped_images/frame*")
+        self.labels = glob.glob("apple/*frame*")
+        self.labels = sorted(self.labels, key=self.sortKey)
+        #lambda x: float(x)
+
+        #for i in range(0, len(self.labels)):
+            #print(self.labels[i])
+
+        #print(len(self.labels))
         if files == None:
             self.filenames = []
         else:
             self.filenames = files
+
             for i in range(0, len(self.filenames)):
-                image = cv2.imread(self.filenames[i])
+                #image = cv2.imread(glob.glob("cropped_images/" + self.filenames[i]))
+                #print("imageName: ", (glob.glob("cropped_images/" + self.filenames[i]))[0])
+                image = cv2.imread((glob.glob("cropped_images/*" + self.filenames[i]))[0])
                 self.images.append(image)
                 image_gray = rgb2gray(image)
-                #image_gray = scipy.misc.imresize(image_gray, 2.5)
-                blobs = blob_doh(image_gray, max_sigma=39, threshold=.01)
-                # Compute radii in the 3rd column.
-                #blobs[:, 2] = blobs[:, 2] * sqrt(2)
+                #blobs = blob_doh(image_gray, min_sigma=3, max_sigma=35, num_sigma=30, threshold=.005)
+                blobs = blob_doh(image_gray, min_sigma=1, max_sigma=25, num_sigma=15, threshold=.001)
                 self.all_blobs.append(blobs)
+                file_processing = "Processing files: " + str(i+1) + "/" + str(len(self.filenames))
+                print("blobs size: ", len(blobs))
+                print(file_processing)
+
+
+
+    def sortKey(self, str):
+        i = str.find("frame")
+        j = str.find(".jpg")
+        #print("shortened string: ", str[i+5:j])
+        return int(str[i+5:j])
+
 
     '''
-    Returns the image at
-    filenames[0] with edges detected
+       Returns the image at
+       filenames[0] with edges detected
     '''
     def edges(self):
         img = cv2.imread(self.filenames[0], 0)
@@ -119,7 +148,7 @@ class countFruit:
         height, width = image_gray.shape[:2]
 
         num_blobs = 0;
-        print("blobs_size", len(blobs))
+        #print("blobs_size", len(blobs))
         Y = []
         blob_AIMs = []
 
@@ -161,7 +190,6 @@ class countFruit:
                            [],
                            [],
                            []]
-
 
             coords = [[[y_init1, x_init1], [y_init2, x_init2], [y_init3, x_init3]],
                       [[y_init1, x_init1], [y_init2, x_init2], [y_init3, x_init3]],
@@ -319,37 +347,7 @@ class countFruit:
                 Y.append(0)
         return Y
 
-    '''
-    ###INCOMPLETE
-    '''
-    def testHOG(self, filename):
-        image = cv2.imread(filename)
-        image = rgb2gray(image)
 
-        fd, hog_image = hog(image, orientations=8, pixels_per_cell=(16, 16),
-                            cells_per_block=(1, 1), visualise=True)
-
-
-        '''
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(8, 4), sharex=True, sharey=True)
-
-        ax1.axis('off')
-        ax1.imshow(image, cmap=plt.cm.gray)
-        ax1.set_title('Input image')
-        ax1.set_adjustable('box-forced')
-
-        # Rescale histogram for better display
-        hog_image_rescaled = exposure.rescale_intensity(hog_image, in_range=(0, 0.02))
-
-        ax2.axis('off')
-        ax2.imshow(hog_image_rescaled, cmap=plt.cm.gray)
-        ax2.set_title('Histogram of Oriented Gradients')
-        ax1.set_adjustable('box-forced')
-        plt.savefig('RadHOG.png')
-        plt.show()
-
-        return hog_image_rescaled
-        '''
     '''
     # Returns an array of arrays
     # Each array element is a blob in the image, and that
@@ -364,7 +362,6 @@ class countFruit:
     '''
 
     def RadPIC(self, R, blobs, image):
-
         image_gray = rgb2gray(image)
         height, width = image_gray.shape[:2]
         arr = []
@@ -402,14 +399,56 @@ class countFruit:
     '''
     def HOG(self, hogSize, blobs, image):
         image_gray = rgb2gray(image)
+        height, width = image_gray.shape[:2]
+        basewidth = 10
         arr = []
         fd, hog_image = hog(image_gray, orientations=8, pixels_per_cell=(16, 16),
                             cells_per_block=(1, 1), visualise=True)
+
         for blob in blobs:
             y, x, r = blob
+            scaleR = r
             tempImage = image_gray
-            subImage = tempImage[(y-(hogSize/2)):(y+(hogSize/2)), (x-(hogSize/2)):(x+(hogSize/2))]
-            fd= hog(image_gray, orientations=8, pixels_per_cell=(16, 16),
+            #subImage = tempImage[(y-(hogSize/2)):(y+(hogSize/2)), (x-(hogSize/2)):(x+(hogSize/2))]
+            y1 = y-(r/2)
+            y2 = y+(r/2)
+            x1 = x-(r/2)
+            x2 = x+(r/2)
+
+            if x1 < 0:
+                while x - (scaleR/2) <= 0:
+                    scaleR = scaleR - 1
+            if x2 < 0:
+                while x + (scaleR/2) <= 0:
+                    scaleR = scaleR - 1
+            if y1 < 0:
+                while y - (scaleR/2) <= 0:
+                    scaleR = scaleR - 1
+            if y2 < 0:
+                while y + (scaleR/2) <= 0:
+                    scaleR = scaleR - 1
+            if x1 >= width:
+                while x - (scaleR/2) >= width:
+                    scaleR = scaleR-1
+            if x2 >= width:
+                while x + (scaleR/2) >= width:
+                    scaleR = scaleR-1
+            if y1 >= height:
+                while y - (scaleR / 2) >= height:
+                    scaleR = scaleR-1
+            if y2 >= height:
+                while y + (scaleR / 2) >= height:
+                    scaleR = scaleR-1
+
+            subImage = tempImage[(y-(scaleR/2)):(y+(scaleR/2)), (x-(scaleR/2)):(x+(scaleR/2))]
+
+            if x == float(0) or y == float(0):
+                subImage = np.zeros((10, 10))
+
+            subImage = imresize(subImage, (10,10))
+
+
+            fd= hog(subImage, orientations=8, pixels_per_cell=(16, 16),
                                 cells_per_block=(1, 1), visualise=False)
             arr.append(fd)
         return arr
@@ -429,29 +468,49 @@ class countFruit:
             cols = cols + len(blobs)
         X = []
         Y = []
-        lenRadPicX = 0
-        imagesSize = len(self.images)
 
-        for i in range(0, imagesSize):
-            AIM = self.AIM(self.all_blobs[i], rgb2gray(self.images[i]))
-            RadPic = self.RadPIC(5, self.all_blobs[i], rgb2gray(self.images[i]))
-            inputHOG = self.HOG(5, self.all_blobs[i], rgb2gray(self.images[i]))
-            print("AIM: ", AIM)
+        for i in range(0, len(self.images)):
+            #AIM = self.AIM(self.all_blobs[i], rgb2gray(self.images[i]))
+            RadPic = self.RadPIC(20, self.all_blobs[i], rgb2gray(self.images[i]))
+            inputHOG = self.HOG(10, self.all_blobs[i], rgb2gray(self.images[i]))
             X.extend(self.makeX(RadPic, inputHOG))
-            Y = Y + AIM
+            train_status = "Training Status: " + str(i+1) + "/" + str(len(self.images))
+            print(train_status)
+
+        zeroCount = 0
+        oneCount = 0
+
+        for i in range(0, 500):
+            j = i
+            tempStr = self.labels[j]
+
+            while tempStr.find("frame" + str(i)) == -1:
+                j = j + 1
+                tempStr = self.labels[j]
+
+            label_image = cv2.imread((glob.glob(tempStr))[0])
+            blobs = self.all_blobs[i]
+            for blob in blobs:
+                y,x,r = blob
+                if label_image[y,x][0] == 255 & label_image[y,x][1] == 255 & label_image[y,x][2] == 255:
+                    Y.append(1)
+                    oneCount = oneCount + 1
+                else:
+                    Y.append(0)
+                    zeroCount = zeroCount + 1
+
+        print("oneCount: ", oneCount)
+        print("zeroCount: ", zeroCount)
+        print("Y: ", Y)
 
         forest = RandomForestClassifier(n_estimators=100)
 
-        print("x: ", len(X))
-        print("y: ",len(Y))
-        #print("x: ", X)
-        print("y: ", Y)
-
         # Fit the training data to the Survived labels and create the decision trees
         forest = forest.fit(X, Y)
-        with open('forest3.pkl', 'wb') as f:
-            pickle.dump(forest, f)
-
+        #with open('26may2016.pkl', 'wb') as f: #paramters for radpic and hog were 5 and 5
+        #    pickle.dump(forest, f)
+        with open('croppedImages.pkl', 'wb') as f:
+           pickle.dump(forest, f)
     '''
     Uses the classifer trained in
     fruitDetection.trainClassifier in order to predict Y
@@ -464,29 +523,26 @@ class countFruit:
         image = cv2.imread(filename)
         image_gray = rgb2gray(image)
 
-        blobs = blob_doh(image_gray,
-                         min_sigma=.5,
-                         max_sigma=30,
-                         num_sigma=15,
-                         threshold=.005,
-                         overlap=0.5)
+        blobs = blob_doh(image_gray, min_sigma=1, max_sigma=25, num_sigma=15, threshold=.001)
 
-        RadPic = self.RadPIC(5, blobs, image_gray)
-        inputHOG = self.HOG(5, blobs, image_gray)
+        RadPic = self.RadPIC(20, blobs, image_gray)
+        inputHOG = self.HOG(10, blobs, image_gray)
         X_final = self.makeX(RadPic, inputHOG)
 
         # Take the same decision trees and run it on the test data
-        with open('26may2016.pkl', 'rb') as f:
+        with open('croppedImages.pkl', 'rb') as f:
             forest = pickle.load(f)
 
+        #prediction = forest.predict(X_final)
         prediction = forest.predict(X_final)
+        print("Prediction: ", prediction)
 
-        blobs_list = [[],blobs, []]
+        blobs_list = [[], blobs, [], []]
 
-        titles = ['Original Image','Blob Detection', 'Random Forest Classifier']
-        colors = ['black', 'orange', 'red' ]
+        titles = ['Original Image','Blob Detection', 'Ground Truth Labels', 'Random Forest Classifier']
+        colors = ['black', 'orange', 'blue', 'red']
         sequence = zip(blobs_list, colors, titles)
-        fig, axes = plt.subplots(1, 3, sharex=True, sharey=True, subplot_kw={'adjustable': 'box-forced'})
+        fig, axes = plt.subplots(1, 4, sharex=True, sharey=True, subplot_kw={'adjustable': 'box-forced'})
         axes = axes.ravel()
 
         blobs2 = blobs
@@ -495,31 +551,63 @@ class countFruit:
             ax = axes[0]
             axes = axes[1:]
             ax.set_title(title)
-            ax.imshow(image, interpolation='nearest')
+            if title != 'Ground Truth Labels':
+                ax.imshow(image, interpolation='nearest')
+            else:
+                #print(glob.glob(filename)[0])
+                frame = filename[filename.find("frame"): len(filename)]
+                print(frame + ".png")
+                print(glob.glob("apple/*" + frame + ".png"))
+                ax.imshow(cv2.imread(glob.glob("apple/*" + frame + ".png")[0]), interpolation = 'nearest')
+                #print(glob.glob("apple/*" + frame)[0] + ".png")
             for blob in blobs:
                 y, x, r = blob
-                c = plt.Circle((x, y), r, color=color, linewidth=.5, fill=False)
+                c = plt.Circle((x, y), r, color=color, linewidth=2, fill=False)
                 ax.add_patch(c)
             if title == 'Random Forest Classifier':
-                for i in range(1, len(blobs2)):
+                for i in range(len(blobs2)):
                     blob = blobs2[i]
                     y, x, r = blob
-                    if prediction[i] == 1:
-                        c = plt.Circle((x, y), r, color='red', linewidth=.5, fill=False)
+                    #print("prediction: ", prediction[i][1])
+                    if prediction[i] == 1: #IMPORTANT LINE#
+                        c = plt.Circle((x, y), r, color='red', linewidth=2, fill=False)
                         ax.add_patch(c)
 
         plt.show()
         plt.savefig('output.png')
 
-'''
------TESTING SCRIPT BELOW-----
-'''
+    def testScript(self):
+        arr = ['frame0000.jpeg',
+               'frame0001.jpeg',
+               'frame0003.jpeg',
+               'frame0004.jpeg',
+               'frame0005.jpeg',
+               'frame0006.jpeg',
+               'frame0007.jpeg',
+               'frame0008.jpeg',
+               'frame0009.jpeg',
+               'frame0010.jpeg',
+               'frame0011.jpeg',]
 
-#arr = ['frame0000.jpeg', 'frame0001.jpeg', 'frame0003.jpeg', 'frame0004.jpeg', 'frame0005.jpeg', 'frame0006.jpeg']
-#apples = countFruit(arr)
-#apples.trainClassifier()
+    def precisionRecall(self):
+        X = []
+        Y = []
+
+#apples = countFruit(arr, labels)
+
+files = []
 
 
-applesTest = countFruit()
-#applesTest.HOG(blobs, image)
-applesTest.useClassifier("frame0009.jpeg")
+for i in range(0, 500):
+    file = "frame" + str(i) + ".jpg"
+    files.append(file)
+
+
+#test1 = countFruit(files)
+#test1.trainClassifier()
+
+testUse = countFruit()
+testUse.useClassifier(testUse.croppedImages[884])
+
+#print(test1.labels)
+#applesTest.useClassifier("frame0010.jpg")
