@@ -51,13 +51,23 @@ class countFruit:
         self.croppedImages = croppedImages = glob.glob("cropped_images/frame*")
         self.labels = glob.glob("apple/*frame*")
         self.labels = sorted(self.labels, key=self.sortKey)
+<<<<<<< HEAD
 
+=======
+        #lambda x: float(x)
+
+        #for i in range(0, len(self.labels)):
+            #print(self.labels[i])
+
+        #print(len(self.labels))
+>>>>>>> c1b308ec15ebe3098d38e2f3bd0171bbd669606b
         if files == None:
             self.filenames = []
         else:
             self.filenames = files
 
             for i in range(0, len(self.filenames)):
+<<<<<<< HEAD
                 image = cv2.imread((glob.glob("cropped_images/*" + self.filenames[i]))[0])
                 self.images.append(image)
                 image_gray = rgb2gray(image)
@@ -69,6 +79,18 @@ class countFruit:
                 self.all_blobs.append(blobs)
                 file_processing = "Processing files: " + str(i+1) + "/" + str(len(self.filenames))
                 #print("blobs size: ", len(blobs))
+=======
+                #image = cv2.imread(glob.glob("cropped_images/" + self.filenames[i]))
+                #print("imageName: ", (glob.glob("cropped_images/" + self.filenames[i]))[0])
+                image = cv2.imread((glob.glob("cropped_images/*" + self.filenames[i]))[0])
+                self.images.append(image)
+                image_gray = rgb2gray(image)
+                #blobs = blob_doh(image_gray, min_sigma=3, max_sigma=35, num_sigma=30, threshold=.005)
+                blobs = blob_doh(image_gray, min_sigma=1, max_sigma=25, num_sigma=15, threshold=.001)
+                self.all_blobs.append(blobs)
+                file_processing = "Processing files: " + str(i+1) + "/" + str(len(self.filenames))
+                print("blobs size: ", len(blobs))
+>>>>>>> c1b308ec15ebe3098d38e2f3bd0171bbd669606b
                 print(file_processing)
 
 
@@ -76,6 +98,10 @@ class countFruit:
     def sortKey(self, str):
         i = str.find("frame")
         j = str.find(".jpg")
+<<<<<<< HEAD
+=======
+        #print("shortened string: ", str[i+5:j])
+>>>>>>> c1b308ec15ebe3098d38e2f3bd0171bbd669606b
         return int(str[i+5:j])
 
 
@@ -149,6 +175,10 @@ class countFruit:
         height, width = image_gray.shape[:2]
 
         num_blobs = 0;
+<<<<<<< HEAD
+=======
+        #print("blobs_size", len(blobs))
+>>>>>>> c1b308ec15ebe3098d38e2f3bd0171bbd669606b
         Y = []
         blob_AIMs = []
 
@@ -397,13 +427,21 @@ class countFruit:
         -image: image
         -blobs: blobs from image
     '''
+<<<<<<< HEAD
 
+=======
+>>>>>>> c1b308ec15ebe3098d38e2f3bd0171bbd669606b
     def HOG(self, hogSize, blobs, image):
         image_gray = rgb2gray(image)
         height, width = image_gray.shape[:2]
         basewidth = 10
         arr = []
+<<<<<<< HEAD
         RadHOG = []
+=======
+        fd, hog_image = hog(image_gray, orientations=8, pixels_per_cell=(16, 16),
+                            cells_per_block=(1, 1), visualise=True)
+>>>>>>> c1b308ec15ebe3098d38e2f3bd0171bbd669606b
 
         for blob in blobs:
             y, x, r = blob
@@ -447,6 +485,7 @@ class countFruit:
 
             subImage = imresize(subImage, (10,10))
 
+<<<<<<< HEAD
             fd, hog_image = hog(subImage, orientations=8, pixels_per_cell=(2, 2), cells_per_block=(1, 1), visualise=True)
 
             angle = 0
@@ -458,6 +497,12 @@ class countFruit:
                 angle = angle + 45
 
             arr.append(blob_feature)
+=======
+
+            fd= hog(subImage, orientations=8, pixels_per_cell=(16, 16),
+                                cells_per_block=(1, 1), visualise=False)
+            arr.append(fd)
+>>>>>>> c1b308ec15ebe3098d38e2f3bd0171bbd669606b
         return arr
 
     def makeX(self, x1, x2):
@@ -466,7 +511,10 @@ class countFruit:
             xTemp = x1[i]
             xTemp.extend(x2[i])
             X.append(xTemp)
+<<<<<<< HEAD
 
+=======
+>>>>>>> c1b308ec15ebe3098d38e2f3bd0171bbd669606b
         return X
 
     def trainClassifier(self):
@@ -477,9 +525,15 @@ class countFruit:
         X = []
         Y = []
 
+<<<<<<< HEAD
         for i in range(0, 500):
             #AIM = self.AIM(self.all_blobs[i], rgb2gray(self.images[i]))
             RadPic = self.RadPIC(10, self.all_blobs[i], rgb2gray(self.images[i]))
+=======
+        for i in range(0, len(self.images)):
+            #AIM = self.AIM(self.all_blobs[i], rgb2gray(self.images[i]))
+            RadPic = self.RadPIC(20, self.all_blobs[i], rgb2gray(self.images[i]))
+>>>>>>> c1b308ec15ebe3098d38e2f3bd0171bbd669606b
             inputHOG = self.HOG(10, self.all_blobs[i], rgb2gray(self.images[i]))
             X.extend(self.makeX(RadPic, inputHOG))
             train_status = "Training Status: " + str(i+1) + "/" + str(len(self.images))
@@ -517,7 +571,11 @@ class countFruit:
         forest = forest.fit(X, Y)
         #with open('26may2016.pkl', 'wb') as f: #paramters for radpic and hog were 5 and 5
         #    pickle.dump(forest, f)
+<<<<<<< HEAD
         with open('croppedImagesV2.pkl', 'wb') as f:
+=======
+        with open('croppedImages.pkl', 'wb') as f:
+>>>>>>> c1b308ec15ebe3098d38e2f3bd0171bbd669606b
            pickle.dump(forest, f)
     '''
     Uses the classifer trained in
@@ -531,17 +589,27 @@ class countFruit:
         image = cv2.imread(filename)
         image_gray = rgb2gray(image)
 
+<<<<<<< HEAD
         #blobs = blob_doh(image_gray, min_sigma=1, max_sigma=25, num_sigma=15, threshold=.001)
         blobs = blob_dog(image_gray, min_sigma=1, max_sigma=25, sigma_ratio=1.6, threshold=.25, overlap=0.5)
         if (len(blobs) != 0):
             blobs[:, 2] = blobs[:, 2] * sqrt(2)
 
         RadPic = self.RadPIC(10, blobs, image_gray)
+=======
+        blobs = blob_doh(image_gray, min_sigma=1, max_sigma=25, num_sigma=15, threshold=.001)
+
+        RadPic = self.RadPIC(20, blobs, image_gray)
+>>>>>>> c1b308ec15ebe3098d38e2f3bd0171bbd669606b
         inputHOG = self.HOG(10, blobs, image_gray)
         X_final = self.makeX(RadPic, inputHOG)
 
         # Take the same decision trees and run it on the test data
+<<<<<<< HEAD
         with open('croppedImagesV2.pkl', 'rb') as f:
+=======
+        with open('croppedImages.pkl', 'rb') as f:
+>>>>>>> c1b308ec15ebe3098d38e2f3bd0171bbd669606b
             forest = pickle.load(f)
 
         #prediction = forest.predict(X_final)
@@ -565,9 +633,16 @@ class countFruit:
             if title != 'Ground Truth Labels':
                 ax.imshow(image, interpolation='nearest')
             else:
+<<<<<<< HEAD
                 frame = filename[filename.find("frame"): len(filename)]
                 #print(frame + ".png")
                 #print(glob.glob("apple/*" + frame + ".png"))
+=======
+                #print(glob.glob(filename)[0])
+                frame = filename[filename.find("frame"): len(filename)]
+                print(frame + ".png")
+                print(glob.glob("apple/*" + frame + ".png"))
+>>>>>>> c1b308ec15ebe3098d38e2f3bd0171bbd669606b
                 ax.imshow(cv2.imread(glob.glob("apple/*" + frame + ".png")[0]), interpolation = 'nearest')
                 #print(glob.glob("apple/*" + frame)[0] + ".png")
             for blob in blobs:
@@ -586,6 +661,7 @@ class countFruit:
         plt.show()
         plt.savefig('output.png')
 
+<<<<<<< HEAD
     def precisionRecall(self):
         test_images = []
         test_blobs = []
@@ -649,16 +725,55 @@ class countFruit:
 precall = countFruit()
 precall.precisionRecall()
 
+
 #apples = countFruit(arr, labels)
 
 files = []
 #for i in range(0, 500):
 #    file = "frame" + str(i) + ".jpg"
 #    files.append(file)
+=======
+    def testScript(self):
+        arr = ['frame0000.jpeg',
+               'frame0001.jpeg',
+               'frame0003.jpeg',
+               'frame0004.jpeg',
+               'frame0005.jpeg',
+               'frame0006.jpeg',
+               'frame0007.jpeg',
+               'frame0008.jpeg',
+               'frame0009.jpeg',
+               'frame0010.jpeg',
+               'frame0011.jpeg',]
+
+    def precisionRecall(self):
+        X = []
+        Y = []
+
+#apples = countFruit(arr, labels)
+
+files = []
 
 
+for i in range(0, 500):
+    file = "frame" + str(i) + ".jpg"
+    files.append(file)
+
+>>>>>>> c1b308ec15ebe3098d38e2f3bd0171bbd669606b
+
+#test1 = countFruit(files)
+#test1.trainClassifier()
+
+<<<<<<< HEAD
 #test1 = countFruit(files)
 #test1.trainClassifier()
 
 #testUse = countFruit()
 #testUse.useClassifier(testUse.croppedImages[909])
+=======
+testUse = countFruit()
+testUse.useClassifier(testUse.croppedImages[884])
+
+#print(test1.labels)
+#applesTest.useClassifier("frame0010.jpg")
+>>>>>>> c1b308ec15ebe3098d38e2f3bd0171bbd669606b
