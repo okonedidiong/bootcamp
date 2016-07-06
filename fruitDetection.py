@@ -528,6 +528,7 @@ class countFruit:
     '''
 
     def useClassifier(self, filename):
+        # this is a comment 
         image = cv2.imread(filename)
         image_gray = rgb2gray(image)
 
@@ -648,6 +649,7 @@ class countFruit:
 
 precall = countFruit()
 precall.precisionRecall()
+rin
 
 #apples = countFruit(arr, labels)
 
