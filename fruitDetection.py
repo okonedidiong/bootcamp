@@ -23,6 +23,7 @@ from skimage import data, color, exposure
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.externals import joblib
 from sklearn import svm, datasets
+from sklearn.metrics import roc_curve
 from sklearn.metrics import precision_recall_curve
 from sklearn.metrics import average_precision_score
 from sklearn.cross_validation import train_test_split
@@ -44,25 +45,56 @@ class countFruit:
     filenames = [] #filenames containing all images
     all_blobs = [] #blob_doh for every image
     croppedImages = []
+    full_images = []
+    full_image_labels = []
     labels = []
 
 
     def __init__(self, files = None):
-        self.croppedImages = croppedImages = glob.glob("cropped_images/frame*")
-        self.labels = glob.glob("apple/*frame*")
-        self.labels = sorted(self.labels, key=self.sortKey)
+        #self.croppedImages = glob.glob("cropped_images/frame*")
+        #self.croppedImages = glob.glob("c")
+        #self.croppedImages = sorted(self.croppedImages, key=self.sortKey)
+        #self.labels = glob.glob("apple/*frame*")
+        #self.labels = sorted(self.labels, key=self.sortKey)
+
+        self.full_images = glob.glob("full_images/frame*")
+        self.full_images = sorted(self.full_images, key=self.sortKey2)
+        self.full_image_labels = glob.glob("full_image_labels/frame*")
+        self.full_image_labels = sorted(self.full_image_labels, key=self.sortKey2)
+
+        #print("full_images: ", self.full_images)
+        #print("full_image_labels: ", self.full_image_labels)
+
+        '''
+        for x in range(0, len(testVal)):
+            for y in range(0, len(testVal[x])):
+                for z in range(0, len(testVal[x][y])):
+                    if testVal[x][y][z] != 0:
+                        print("z: ", testVal[x][y][z])
+        '''
+
+        #print("test image: ", cv2.imread(self.full_image_labels[1]))
 
         if files == None:
             self.filenames = []
+            '''
+            for i in range(0, 1000):
+                image = cv2.imread((glob.glob("cropped_images/*" + self.filenames[i]))[0])
+                self.images.append(image)
+                image_gray = rgb2gray(image)
+                file_processing = "Processing files: " + str(i + 1) + "/" + str(len(self.filenames))
+                print(file_processing)
+            '''
         else:
             self.filenames = files
 
             for i in range(0, len(self.filenames)):
-                image = cv2.imread((glob.glob("cropped_images/*" + self.filenames[i]))[0])
+                #image = cv2.imread((glob.glob("cropped_images/*" + self.filenames[i]))[0])
+                image = cv2.imread((glob.glob("full_images/*" + self.filenames[i]))[0])
                 self.images.append(image)
                 image_gray = rgb2gray(image)
                 #blobs = blob_doh(image_gray, min_sigma=1, max_sigma=25, num_sigma=15, threshold=.001)
-                blobs = blob_dog(image_gray, min_sigma=1, max_sigma=25, sigma_ratio=1.6, threshold=.25, overlap=0.5)
+                blobs = blob_dog(image_gray, min_sigma=.5, max_sigma=25, sigma_ratio=1.6, threshold=.25, overlap=0.5)
                 if(len(blobs) != 0):
                     blobs[:, 2] = blobs[:, 2] * sqrt(2)
 
@@ -71,18 +103,24 @@ class countFruit:
                 #print("blobs size: ", len(blobs))
                 print(file_processing)
 
-
-
     def sortKey(self, str):
         i = str.find("frame")
-        j = str.find(".jpg")
+        j = str.find(".")
         return int(str[i+5:j])
 
+    def sortKey2(self, str):
+        i = str.find("frame")
+        return int(str[i+5:i+9])
+
+    def sortKey3(self, str):
+        i = str.find("frame")
+        return int(str[i + 5:i + 9])
 
     '''
        Returns the image at
        filenames[0] with edges detected
     '''
+
     def edges(self):
         img = cv2.imread(self.filenames[0], 0)
         sigma = 0.33
@@ -102,251 +140,43 @@ class countFruit:
     def circles(self, filename):
         image = cv2.imread(filename, 0)
         image_gray = rgb2gray(image)
+        height, width = image_gray.shape[:2]
 
-        blobs_log = blob_log(image_gray, max_sigma=30, num_sigma=10, threshold=.1)
+        blobs_log = blob_log(image_gray, min_sigma=3, max_sigma=30, num_sigma=10, threshold=.1)
 
         # Compute radii in the 3rd column.
         blobs_log[:, 2] = blobs_log[:, 2] * sqrt(2)
 
-        blobs_dog = blob_dog(image_gray, max_sigma=30, threshold=.1)
+        blobs_dog = blob_dog(image_gray, min_sigma=3, max_sigma=30, threshold=.1)
         blobs_dog[:, 2] = blobs_dog[:, 2] * sqrt(2)
 
-        blobs_doh = blob_doh(image_gray, max_sigma=30, threshold=.01)
+        blobs_doh = blob_doh(image_gray, min_sigma=3, max_sigma=30, threshold=.01)
 
-        blobs_list = [blobs_log, blobs_doh]
-        colors = ['yellow', 'red']
-        titles = ['Laplacian of Gaussian', 'Determinant of Hessian']
+        blobs_list = [[], blobs_log, blobs_dog, blobs_doh]
+        colors = ['black', 'red', 'red', 'red']
+        titles = ['Original Image', 'Laplacian of Gaussian','Difference of Gaussian', 'Determinant of Hessian']
         sequence = zip(blobs_list, colors, titles)
 
-        fig, axes = plt.subplots(1, 2, sharex=True, sharey=True, subplot_kw={'adjustable': 'box-forced'})
+        fig, axes = plt.subplots(1, 4, sharex=True, sharey=True, subplot_kw={'adjustable': 'box-forced'})
         axes = axes.ravel()
 
         for blobs, color, title in sequence:
             ax = axes[0]
             axes = axes[1:]
             ax.set_title(title)
-            ax.imshow(image, interpolation='nearest')
+            #ax.imshow(image, interpolation='nearest')     #print("r: ", r)
+            ax.imshow(cv2.imread(filename))
+            #print("________")
+            #c = plt.Circle((x, y), r, color= 'red', linewidth=2, fill=False)
+            #currentAxis = plt.gca()
+            #currentAxis.add_patch(Rectangle((x - r, y - r), 2*r, 2*r, fill=None, alpha=1))
             for blob in blobs:
                 y, x, r = blob
                 c = plt.Circle((x, y), r, color=color, linewidth=2, fill=False)
                 ax.add_patch(c)
 
-        plt.savefig('output.png')
+        #plt.savefig('output.png')
         plt.show()
-
-
-    '''
-    Returns an array of integers for each blob.
-
-    This array of integers represents the distance
-    from the center of the apple where the change in
-    intensitiy is greater than or equal to .10. In other
-    words, the each array represents the radius of a new
-    intensity band
-    '''
-    def AIM(self, blobs, image):
-        image_gray = rgb2gray(image)
-        height, width = image_gray.shape[:2]
-
-        num_blobs = 0;
-        Y = []
-        blob_AIMs = []
-
-        for blob in blobs:
-            IntDrops = [0,0,0,0,0,0,0,0,0]
-            num_blobs = num_blobs + 1
-            y, x, r = blob
-            #print("x: ", x)
-            #print("y: ", y)
-            #print("r: ", r)
-            #print("________")
-            #c = plt.Circle((x, y), r, color= 'red', linewidth=2, fill=False)
-            #currentAxis = plt.gca()
-            #currentAxis.add_patch(Rectangle((x - r, y - r), 2*r, 2*r, fill=None, alpha=1))
-
-
-            #plt.imshow(image_gray)
-            curr_radius = 1
-            x_init1 = x
-            x_init2 = x
-            x_init3 = x
-            y_init1 = y
-            y_init2 = y
-            y_init3 = y
-
-            x_end1 = x
-            x_end2 = x
-            x_end3 = x
-            y_end1 = y
-            y_end2 = y
-            y_end3 = y
-
-            intensities = [[],
-                           [],
-                           [],
-                           [],
-                           [],
-                           [],
-                           [],
-                           [],
-                           []]
-
-            coords = [[[y_init1, x_init1], [y_init2, x_init2], [y_init3, x_init3]],
-                      [[y_init1, x_init1], [y_init2, x_init2], [y_init3, x_init3]],
-                      [[y_init1, x_init1], [y_init2, x_init2], [y_init3, x_init3]],
-                      [[y_init1, x_init1], [y_init2, x_init2], [y_init3, x_init3]],
-                      [[y_init1, x_init1], [y_init2, x_init2], [y_init3, x_init3]],
-                      [[y_init1, x_init1], [y_init2, x_init2], [y_init3, x_init3]],
-                      [[y_init1, x_init1], [y_init2, x_init2], [y_init3, x_init3]],
-                      [[y_init1, x_init1], [y_init2, x_init2], [y_init3, x_init3]]]
-
-            while curr_radius <= r:
-                    for sector in range(0,8):
-                        # Band calcaluations
-                        y_init1 = coords[sector][0][0]
-                        x_init1 = coords[sector][0][1]
-                        y_init2 = coords[sector][1][0]
-                        x_init2 = coords[sector][1][1]
-                        y_init3 = coords[sector][2][0]
-                        x_init3 = coords[sector][2][1]
-
-                        # Expland scan lines
-                        x_end1 = x_init1 + (1 * math.cos(math.radians(45 * sector + 0)))
-                        x_end2 = x_init2 + (1 * math.cos(math.radians(45 * sector + 15)))
-                        x_end3 = x_init3 + (1 * math.cos(math.radians(45 * sector + 30)))
-
-                        y_end1 = y_init1 + (1 * math.sin(math.radians(45 * sector + 0)))
-                        y_end2 = y_init2 + (1 * math.sin(math.radians(45 * sector + 15)))
-                        y_end3 = y_init3 + (1 * math.sin(math.radians(45 * sector + 30)))
-
-                        #Image bounds
-                        if x_end1 >= width or x_end1 <= 0:
-                            x_end1 = x_init1
-                        if x_end2 >= width or x_end2 <= 0:
-                            x_end2 = x_init2
-                        if x_end3 >= width or x_end3 <= 0:
-                            x_end3 = x_init3
-                        if y_end1 >= height or y_end1 <= 0:
-                            y_end1 = y_init1
-                        if y_end2 >= height or y_end2 <= 0:
-                            y_end2 = y_init2
-                        if y_end3 >= height or y_end3 <= 0:
-                            y_end3 = y_init3
-
-                        i_init1 = image_gray[y_init1, x_init1]
-                        i_init2 = image_gray[y_init2, x_init2]
-                        i_init3 = image_gray[y_init3, x_init3]
-
-                        i_end1 = image_gray[y_end1, x_end1]
-                        i_end2 = image_gray[y_end2, x_end2]
-                        i_end3 = image_gray[y_end3, x_end3]
-
-                        i_diff1 = 0
-                        i_diff2 = 0
-                        i_diff3 = 0
-
-                        if i_init1 != 0:
-                            i_diff1 = (i_end1 - i_init1) / i_init1
-                        if i_init2 != 0:
-                            i_diff2 = (i_end2 - i_init2) / i_init2
-                        if i_init3 != 0:
-                            i_diff3 = (i_end3 - i_init3) / i_init3
-
-
-                        # Is there a new band?
-                        if i_diff1 <= -0.10 or i_diff2 <= -0.0 or i_diff3 <= -0.10:
-                            #band_radii.append([x,y,curr_radius])
-                            if i_diff1 <= -0.10:
-                                intensities[sector].append(curr_radius)
-                            elif i_diff2 <= -0.10:
-                                intensities[sector].append(curr_radius)
-                            elif i_diff3 <= -0.10:
-                                intensities[sector].append(curr_radius)
-
-                        #Store old coordinates
-                        coords[sector][0] = x_end1
-                        coords[sector][1] = x_end2
-                        coords[sector][2] = x_end3
-
-                        b1 = x_end1 > width
-                        b2 = x_end2 > width
-                        b3 = x_end3 > width
-                        b4 = x_end1 < 0
-                        b5 = x_end2 < 0
-                        b6 = x_end3 < 0
-
-                        b7 = y_end1 > height
-                        b8 = y_end2 > height
-                        b9 = y_end3 > height
-                        b10 = y_end1 < 0
-                        b11 = y_end2 < 0
-                        b12 = y_end3 < 0
-                        if(b1 or b2 or b3
-                           or b4 or b5 or b6
-                           or  b7 or b8 or b9
-                           or b10 or b11 or b11):
-                            continue
-
-                        scan_init1 = image_gray[y_init1, x_init1]
-                        scan_init2 = image_gray[y_init2, x_init2]
-                        scan_init3 = image_gray[y_init3, x_init3]
-
-                        scan_end1 = image_gray[y_end1, x_end1]
-                        scan_end2 = image_gray[y_end2, x_end2]
-                        scan_end3 = image_gray[y_end3, x_end3]
-
-                        #decrease of intensity
-                        if scan_init1 != 0:
-                            diff1 = abs((scan_end1 - scan_init1)/scan_init1)
-                        else:
-                            diff1 = 0
-                        if scan_init2 != 0:
-                            diff2 = abs((scan_end2 - scan_init2)/scan_init2)
-                        else:
-                            diff2 = 0
-                        if scan_init3 != 0:
-                            diff3 = abs((scan_end3 - scan_init3)/scan_init3)
-                        else:
-                            diff3 = 0
-
-                        #does intensity of points on scan line 1 decrease monotomicaly?
-                        if diff1 <= .10: #and grow_scan1:
-                            line1 = plt.plot([x_init1, x_end1], [y_init1, y_end1])
-                            #plt.setp(line1, color='r', linewidth=1.0)
-                        else:
-                            grow_scan1 = False
-
-                        #does intensity of points on scan line 2 decrease monotomicaly?
-                        if diff2 <= .10: #and grow_scan2:
-                            line2 = plt.plot([x_init2, x_end2], [y_init2, y_end2])
-                            #plt.setp(line2, color='r', linewidth=1.0)
-                        else:
-                            grow_scan2 = False
-
-                        #does intensity of points on scan line 3 decrease monotomicaly?
-                        if diff3 <= .10: #and grow_scan3:
-                            line3 = plt.plot([x_init3, x_end3], [y_init3, y_end3])
-                            #plt.setp(line3, color='r', linewidth=1.0)
-                        else:
-                            grow_scan3 = False
-
-                        coords[sector][0] = [y_end1, x_end1]
-                        coords[sector][1] = [y_end2, x_end2]
-                        coords[sector][2] = [y_end3, x_end3]
-
-
-                    curr_radius = curr_radius + 1
-
-            count = 0
-            for i in intensities:
-                if(len(i) > 5):
-                    count = count + 1
-            if count >= 4:
-                Y.append(1)
-            else:
-                Y.append(0)
-        return Y
-
 
     '''
     # Returns an array of arrays
@@ -405,59 +235,77 @@ class countFruit:
         arr = []
         RadHOG = []
 
+        fd, hog_image = hog(image_gray, orientations=8, pixels_per_cell=(6, 6), cells_per_block=(3, 3), visualise=True)
+
+        # Example of HOG for paper
+
         for blob in blobs:
+            #print("-----------")
             y, x, r = blob
+
+            if x == float(0):
+                x = x + 1
+            if y == float(0):
+                y = y + 1
+
             scaleR = r
             tempImage = image_gray
-            #subImage = tempImage[(y-(hogSize/2)):(y+(hogSize/2)), (x-(hogSize/2)):(x+(hogSize/2))]
-            y1 = y-(r/2)
-            y2 = y+(r/2)
-            x1 = x-(r/2)
-            x2 = x+(r/2)
 
-            if x1 < 0:
-                while x - (scaleR/2) <= 0:
+            #subImage = tempImage[(y-(hogSize/2)):(y+(hogSize/2)), (x-(hogSize/2)):(x+(hogSize/2))]
+            y1 = y-r
+            y2 = y+r
+            x1 = x-r
+            x2 = x+r
+
+            if x1 <= 0:
+                while x - scaleR <= 0:
                     scaleR = scaleR - 1
-            if x2 < 0:
-                while x + (scaleR/2) <= 0:
+            if x2 <= 0:
+                while x + scaleR <= 0:
                     scaleR = scaleR - 1
-            if y1 < 0:
-                while y - (scaleR/2) <= 0:
+            if y1 <= 0:
+                while y - scaleR <= 0:
                     scaleR = scaleR - 1
-            if y2 < 0:
-                while y + (scaleR/2) <= 0:
+            if y2 <= 0:
+                while y + scaleR <= 0:
                     scaleR = scaleR - 1
             if x1 >= width:
-                while x - (scaleR/2) >= width:
+                while x - scaleR >= width:
                     scaleR = scaleR-1
             if x2 >= width:
-                while x + (scaleR/2) >= width:
+                while x + scaleR >= width:
                     scaleR = scaleR-1
             if y1 >= height:
-                while y - (scaleR / 2) >= height:
+                while y - scaleR >= height:
                     scaleR = scaleR-1
             if y2 >= height:
-                while y + (scaleR / 2) >= height:
+                while y + scaleR >= height:
                     scaleR = scaleR-1
 
-            subImage = tempImage[(y-(scaleR/2)):(y+(scaleR/2)), (x-(scaleR/2)):(x+(scaleR/2))]
+            subImage = tempImage[(y-(scaleR)):(y+(scaleR)), (x-(scaleR)):(x+(scaleR))]
+            #print("scaleR: ", scaleR)
+            #print("-----------")
+            #plt.imshow(subImage)
+            #plt.show()
 
-            if x == float(0) or y == float(0):
-                subImage = np.zeros((10, 10))
+            #print("subImage: ", subImage)
 
-            subImage = imresize(subImage, (10,10))
 
-            fd, hog_image = hog(subImage, orientations=8, pixels_per_cell=(2, 2), cells_per_block=(1, 1), visualise=True)
+            testVal = subImage
+            subImage = imresize(subImage, (30,30))
+
+            fd, hog_image = hog(subImage, orientations=8, pixels_per_cell=(6, 6), cells_per_block=(3, 3), visualise=True)
 
             angle = 0
             blob_feature = []
 
             while angle < 360:
-                for radius in range(0, 5):
-                    blob_feature.append(hog_image[5 + radius*math.sin(math.radians(angle))][5 + radius*math.cos(math.radians(angle))])
-                angle = angle + 45
+                for radius in range(0, 15):
+                    blob_feature.append(hog_image[15 + radius*math.sin(math.radians(angle))][15 + radius*math.cos(math.radians(angle))])
+                angle = angle + 1
 
             arr.append(blob_feature)
+
         return arr
 
     def makeX(self, x1, x2):
@@ -466,7 +314,6 @@ class countFruit:
             xTemp = x1[i]
             xTemp.extend(x2[i])
             X.append(xTemp)
-
         return X
 
     def trainClassifier(self):
@@ -474,10 +321,11 @@ class countFruit:
 
         for blobs in self.all_blobs:
             cols = cols + len(blobs)
+
         X = []
         Y = []
 
-        for i in range(0, 500):
+        for i in range(0, 6):
             #AIM = self.AIM(self.all_blobs[i], rgb2gray(self.images[i]))
             RadPic = self.RadPIC(10, self.all_blobs[i], rgb2gray(self.images[i]))
             inputHOG = self.HOG(10, self.all_blobs[i], rgb2gray(self.images[i]))
@@ -488,16 +336,19 @@ class countFruit:
         zeroCount = 0
         oneCount = 0
 
-        for i in range(0, 500):
+        for i in range(0, 6):
             j = i
-            tempStr = self.labels[j]
+            tempStr = self.full_image_labels[j]
 
+            '''
             while tempStr.find("frame" + str(i)) == -1:
                 j = j + 1
-                tempStr = self.labels[j]
+                tempStr = self.full_image_labels[j]
+            '''
 
             label_image = cv2.imread((glob.glob(tempStr))[0])
             blobs = self.all_blobs[i]
+
             for blob in blobs:
                 y,x,r = blob
                 if label_image[y,x][0] == 255 & label_image[y,x][1] == 255 & label_image[y,x][2] == 255:
@@ -515,10 +366,12 @@ class countFruit:
 
         # Fit the training data to the Survived labels and create the decision trees
         forest = forest.fit(X, Y)
-        #with open('26may2016.pkl', 'wb') as f: #paramters for radpic and hog were 5 and 5
+        # with open('26may2016.pkl', 'wb') as f: #paramters for radpic and hog were 5 and 5
         #    pickle.dump(forest, f)
-        with open('croppedImagesV2.pkl', 'wb') as f:
-           pickle.dump(forest, f)
+        with open('test.pkl', 'wb') as f:
+            pickle.dump(forest, f)
+
+
     '''
     Uses the classifer trained in
     fruitDetection.trainClassifier in order to predict Y
@@ -528,7 +381,9 @@ class countFruit:
     '''
 
     def useClassifier(self, filename):
-        # this is a comment 
+        # this is a comment
+        probabilities = []
+        prediction = []
         image = cv2.imread(filename)
         image_gray = rgb2gray(image)
 
@@ -542,19 +397,31 @@ class countFruit:
         X_final = self.makeX(RadPic, inputHOG)
 
         # Take the same decision trees and run it on the test data
-        with open('croppedImagesV2.pkl', 'rb') as f:
+        #with open('croppedImagesV2.pkl', 'rb') as f:
+        #    forest = pickle.load(f)
+        with open('test.pkl', 'rb') as f:
             forest = pickle.load(f)
 
+        probabilities = forest.predict_proba(X_final)
+        print(probabilities)
+        #print("Predict probability: ", )
         #prediction = forest.predict(X_final)
-        prediction = forest.predict(X_final)
-        print("Prediction: ", prediction)
+        for p in probabilities:
+            if p[1] >= .3:
+                prediction.append(1)
+            else:
+                prediction.append(0)
+
+        #print("Prediction: ", prediction)
 
         blobs_list = [[], blobs, [], []]
 
         titles = ['Original Image','Blob Detection', 'Ground Truth Labels', 'Random Forest Classifier']
         colors = ['black', 'orange', 'blue', 'red']
         sequence = zip(blobs_list, colors, titles)
-        fig, axes = plt.subplots(1, 4, sharex=True, sharey=True, subplot_kw={'adjustable': 'box-forced'})
+        fig, axes = plt.subplots(2, 2, sharex=True, sharey=True, subplot_kw={'adjustable': 'box-forced'})
+        fig.subplots_adjust(wspace=.05, hspace=0.001)
+        plt.axis('off')
         axes = axes.ravel()
 
         blobs2 = blobs
@@ -566,101 +433,201 @@ class countFruit:
             if title != 'Ground Truth Labels':
                 ax.imshow(image, interpolation='nearest')
             else:
-                frame = filename[filename.find("frame"): len(filename)]
-                #print(frame + ".png")
-                #print(glob.glob("apple/*" + frame + ".png"))
-                ax.imshow(cv2.imread(glob.glob("apple/*" + frame + ".png")[0]), interpolation = 'nearest')
+                #frame = filename[filename.find("frame"): len(filename)]
+                frame = filename[filename.find("frame"): filename.find("frame") + 9]
+                print("frame: ", frame)
+                ax.imshow(cv2.imread(glob.glob("full_image_labels/*" + frame + "_pos.png")[0]), interpolation='nearest')
+                #ax.imshow(cv2.imread(glob.glob("full_images/*" + frame + ".png")[0]), interpolation = 'nearest')
                 #print(glob.glob("apple/*" + frame)[0] + ".png")
             for blob in blobs:
                 y, x, r = blob
-                c = plt.Circle((x, y), r, color=color, linewidth=2, fill=False)
+                c = plt.Circle((x, y), r, color=color, linewidth=1, fill=False)
                 ax.add_patch(c)
             if title == 'Random Forest Classifier':
                 for i in range(len(blobs2)):
                     blob = blobs2[i]
                     y, x, r = blob
-                    #print("prediction: ", prediction[i][1])
                     if prediction[i] == 1: #IMPORTANT LINE#
-                        c = plt.Circle((x, y), r, color='red', linewidth=2, fill=False)
+                        c = plt.Circle((x, y), r, color='red', linewidth=1, fill=False)
                         ax.add_patch(c)
 
         plt.show()
         plt.savefig('output.png')
 
     def precisionRecall(self):
+        thresholds = []
         test_images = []
+        label_images = []
         test_blobs = []
         X = []
         Y_ground = []
+        Y_classifier = []
+        Y_ground_pixel = []
+        Y_classifier_pixel = []
 
-        #Get blobs
-        for i in range(500,505):
-            file = self.croppedImages[i]
+        # Get blobs
+        for i in range(6,11):
+            #file = self.croppedImages[i]
+            file = self.full_images[i]
             iter_image = rgb2gray(cv2.imread(file))
+
             iter_blobs = blob_dog(iter_image, min_sigma=1, max_sigma=25,
                                   sigma_ratio=1.6, threshold=.25, overlap=0.5)
             test_images.append(iter_image)
             test_blobs.append(iter_blobs)
-            print("Get blobs: " + str(i) + "/1000")
+            print("Get blobs (analysis): " + str(i) + "/1000")
 
-        #Get X values for testing
+        # Get X values for testing
         for i in range(0, len(test_images)):
             RadPic = self.RadPIC(10, test_blobs[i], rgb2gray(test_images[i]))
             inputHOG = self.HOG(10, test_blobs[i], rgb2gray(test_images[i]))
             X.extend(self.makeX(RadPic, inputHOG))
-            print("X: " + str(i) + "/1000")
+            print("X (analysis): " + str(i) + "/1000")
+
 
         #Get Y ground truth values
-        for i in range(500, 505):
+        for i in range(6,11):
             j = i
-            tempStr = self.labels[j]
-
+            #tempStr = self.labels[j]
+            tempStr = self.full_image_labels[j]
+            '''
             while tempStr.find("frame" + str(i)) == -1:
                 j = j + 1
                 tempStr = self.labels[j]
+            '''
 
             label_image = cv2.imread((glob.glob(tempStr))[0])
-            cropped_image = cv2.imread((glob.glob("cropped_images/frame" + str(i) + ".jpg"))[0])
-            cropped_image = rgb2gray(cropped_image)
-            blobs = blob_doh(cropped_image, min_sigma=1, max_sigma=25, num_sigma=15, threshold=.001)
-            for blob in blobs:
+            label_images.append(label_image)
+            #cropped_image = cv2.imread((glob.glob("cropped_images/frame" + str(i) + ".jpg"))[0])
+            #cropped_image = rgb2gray(cropped_image)
+
+        pixel_count = []
+
+        for i in range(0, len(test_blobs)):
+            for blob in test_blobs[i]:
                 y, x, r = blob
-                if label_image[y,x][0] == 255 & label_image[y,x][1] == 255 & label_image[y,x][2] == 255:
+                if label_images[i][y, x][0] == 255 & label_images[i][y, x][1] == 255 & label_images[i][y, x][2] == 255:
                     Y_ground.append(1)
                 else:
                     Y_ground.append(0)
-                #print("Ground Truth: " + str(i) + "/1000")
+                count = 0;
+                for iter_r in range(0, int(r)):
+                    for iter_c in range(0, 360):
+                        iter_x = x + iter_r*math.cos(math.radians(iter_c))
+                        iter_y = y + iter_r*math.sin(math.radians(iter_c))
+                        height, width = label_images[i].shape[:2]
+                        if iter_x > 0 and iter_x < width and iter_y > 0 and iter_y < height:
+                            count = count + 1
+                            if label_images[i][iter_y, iter_x][0] == 255 & label_images[i][iter_y, iter_x][1] == 255 & label_images[i][iter_y, iter_x][2] == 255:
+                                Y_ground_pixel.append(1)
+                            else:
+                                Y_ground_pixel.append(0)
+                pixel_count.append(count)
 
-        #Open classifier
-        with open('croppedImagesV2.pkl', 'rb') as f:
+
+        # Open classifier
+        with open('test.pkl', 'rb') as f:
             forest = pickle.load(f)
 
-        #Precidicions
-        Y_classifier = forest.predict(X)
+        # Precidicions
+        Y_probabilities = forest.predict_proba(X)
+        for i in range(0, len(Y_probabilities)):
+            Y_classifier.append(Y_probabilities[i][1])
 
-        #Precision-Recall
+        for i in range(0, len(Y_probabilities)):
+            for j in range(0, pixel_count[i]):
+                Y_classifier_pixel.append(Y_classifier[i])
+
+
+        # Precision-Recall (per keypoint)
         precision, recall, thresholds = precision_recall_curve(Y_ground, Y_classifier)
 
-        plt.plot(recall, precision)
+        # ROC (per keypoint)
+        fpr, tpr, thresholds = roc_curve(Y_ground, Y_classifier, pos_label=1)
+
+        # Precision-Recall (per pixel)
+        precision_pixel, recall_pixel, thresholds_pixel = precision_recall_curve(Y_ground_pixel, Y_classifier_pixel)
+
+        # ROC (per pixel)
+        fpr_pixel, tpr_pixel, thresholds_pixel = roc_curve(Y_ground_pixel, Y_classifier_pixel, pos_label=1)
+
+        #Precision-Recall Curve (per keypoint)
+        plt.subplot(221)
+        plt.plot(recall, precision, 'ro')
+        plt.title('Precision-Recall Curve')
         plt.ylabel('Precision')
         plt.xlabel('Recall')
+
+        #ROC Curve (per keypoint)
+        plt.subplot(222)
+        plt.plot(fpr, tpr, 'ro')
+        plt.title('ROC Curve')
+        plt.ylabel('True Positive Rate')
+        plt.xlabel('False Positive Rate')
+        '''
+        #Precision-Recall Curve (per pixel)
+        plt.subplot(223)
+        plt.plot(recall_pixel, precision_pixel, 'ro')
+        plt.title('Precision-Recall Curve (Per Pixel)')
+        plt.ylabel('Precision')
+        plt.xlabel('Recall')
+
+        #ROC Curve (per pixel)
+        plt.subplot(224)
+        plt.plot(fpr_pixel, tpr_pixel, 'ro')
+        plt.title('ROC Curve (Per Pixel)')
+        plt.ylabel('True Positive Rate')
+        plt.xlabel('False Positive Rate')
+        '''
         plt.show()
 
+files_train = ["frame0000.jpg",
+         "frame0001.jpg",
+         "frame0002.jpg",
+         "frame0003.jpg",
+         "frame0004.jpg",
+         "frame0005.jpg",]
 
-precall = countFruit()
-precall.precisionRecall()
-rin
+files_test= ["frame0006.jpg",
+         "frame0007.jpg",
+         "frame0008.jpg",
+         "frame0009.jpg",
+         "frame0010.jpg"]
+
+
+#for i in range(0, 6):
+    #file = "frame" + str(i) + ".jpg"
+    #file = "frame" + str(i)
+    #files.append(file)
+
+
 
 #apples = countFruit(arr, labels)
 
-files = []
-#for i in range(0, 500):
-#    file = "frame" + str(i) + ".jpg"
-#    files.append(file)
-
-
-#test1 = countFruit(files)
+#test1 = countFruit(files_train)
 #test1.trainClassifier()
+#precall = countFruit(files_test)
+#precall.precisionRecall()
+
 
 #testUse = countFruit()
-#testUse.useClassifier(testUse.croppedImages[909])
+#testUse.useClassifier(testUse.full_images[8])
+
+#getHOG = countFruit(['frame0009.jpg'])
+#getHOG.circles('apple/P2020L90CappleIframe299.jpg.png')
+#getHOG.circles('cropped_images/frame9.jpg')
+#getHOG.useClassifier(getHOG.full_images[0])
+
+
+fd2, hog_image2 = hog(rgb2gray(cv2.imread('cropped_images/frame184.jpg')), orientations=8, pixels_per_cell=(6, 6), cells_per_block=(3, 3), visualise=True)
+
+plt.subplot(221)
+plt.imshow(cv2.imread('cropped_images/frame184.jpg'))
+plt.title('Original Image')
+
+plt.subplot(222)
+plt.imshow(hog_image2)
+plt.title('Histogram of Oriented Gradients')
+
+#plt.imshow()
+plt.show()
